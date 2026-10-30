@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <title>AI 얼굴 분류 | 머신러닝 서비스</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="./mltest_files/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+    <script src="./mltest_files/tf.min.js"></script>
+    <script src="./mltest_files/teachablemachine-image.min.js"></script>
+    <link rel="stylesheet" href="./mltest_files/style.css">
+</head>
+
+<body>
+    <main class="page">
+        <header class="hero">
+            <span class="badge">AI IMAGE CLASSIFIER</span>
+            <h1 class="title">내 사진, <span>누구를 닮았을까?</span></h1>
+            <p class="subtitle">사진 한 장으로 AI가 닮은 스타를 찾아드려요</p>
+        </header>
+
+        <section class="card file-upload">
+            <div class="image-upload-wrap">
+                <input class="file-upload-input" type="file" onchange="readURL(this);" accept="image/*">
+                <div class="drag-text">
+                    <img src="./mltest_files/upload.png" class="upload" alt="upload-image">
+                    <h3 class="upload-text">사진을 끌어다 놓거나 눌러서 업로드하세요</h3>
+                    <p class="upload-hint">JPG · PNG 이미지 / 얼굴이 정면으로 잘 보일수록 정확해요</p>
+                </div>
+            </div>
+            <div class="file-upload-content">
+                <div class="preview">
+                    <img class="file-upload-image" id="face-image" src="" alt="your image">
+                </div>
+                <div id="loading">
+                    <div class="spinner" role="status"></div>
+                    <p>AI가 사진을 분석중입니다...</p>
+                </div>
+                <div class="result-message"></div>
+                <div id="label-container"></div>
+                <button type="button" class="try-again-btn" onclick="gaReload()">다른 사진으로 재시도</button>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>© 수원대학교 빅데이터분석. All Rights Reserved.</p>
+            <a href="https://www.youtube.com/channel/UCQNE2JmbasNYbjGAcuBiRRg">제작 도움: 조코딩 유튜브 채널</a>
+        </footer>
+    </main>
+
+    <script>
+        function gaReload() {
+            window.location.reload();
+        }
+
+        function readURL(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    $('.image-upload-wrap').hide();
+                    $('#loading').show();
+                    $('.file-upload-image').attr('src', e.target.result);
+                    $('.file-upload-content').show();
+                };
+                reader.readAsDataURL(input.files[0]);
+                init().then(function() {
+                    predict();
+                    $('#loading').hide();
+                });
+            } else {
+                removeUpload();
+            }
+        }
+
+        function removeUpload() {
+            $('.file-upload-input').replaceWith($('.file-upload-input').clone());
+            $('.file-upload-content').hide();
+            $('.image-upload-wrap').show();
+        }
+        $('.image-upload-wrap').bind('dragover', function() {
+            $('.image-upload-wrap').addClass('image-dropping');
+        });
+        $('.image-upload-wrap').bind('dragleave drop', function() {
+            $('.image-upload-wrap').removeClass('image-dropping');
+        });
+    </script>
+    <script>
+        let model, labelContainer, maxPredictions;
+        async function init() {
+            const modelURL = "./mltest_files/model.json";
+            const metadataURL = "./mltest_files/metadata.json";
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = "";
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function predict() {
+            var dic_class2information = {};
+            dic_class2information['나연'] = 'JYP엔터테인먼트 소속 9인조 그룹 TWICE의 멤버';
+            dic_class2information['장원영'] = '스타쉽엔터테인먼트 소속 6인조 걸그룹 IVE의 멤버.';
+            dic_class2information['제니'] = 'YG엔터테인먼트 소속 4인조 걸그룹 BLACKPINK의 메인래퍼이자 리드보컬';
+            var image = document.getElementById("face-image");
+            const prediction = await model.predict(image, false);
+            prediction.sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
+            var top = prediction[0].className;
+            var known = top in dic_class2information;
+            var resultTitle = known ? top : "알수없음";
+            var resultExplain = known ? dic_class2information[top] : "";
+            $('.result-message').html(
+                "<div class='result-label'>당신과 가장 닮은 스타</div>" +
+                "<div class='result-name'>" + resultTitle + "</div>" +
+                "<div class='animal-explain'>" + resultExplain + "</div>"
+            );
+            var classes = Object.keys(dic_class2information);
+            for (let i = 0; i < maxPredictions; i++) {
+                var pct = Math.round(prediction[i].probability * 100);
+                var idx = classes.indexOf(prediction[i].className);
+                labelContainer.childNodes[i].outerHTML =
+                    "<div class='prob-row'>" +
+                    "<span class='prob-name'>" + prediction[i].className + "</span>" +
+                    "<div class='prob-track'><div class='prob-fill " + (idx < 0 ? "fillx" : "fill" + idx) + "' data-w='" + pct + "'></div></div>" +
+                    "<span class='prob-pct'>" + pct + "%</span></div>";
+            }
+            // animate bars from 0 to their value
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    $('.prob-fill').each(function() { this.style.width = this.getAttribute('data-w') + '%'; });
+                });
+            });
+        }
+    </script>
+
+<!--
+image input box
+Copyright (c) 2020 by Aaron Vanston (https://codepen.io/aaronvanston/pen/yNYOXR)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ -->
